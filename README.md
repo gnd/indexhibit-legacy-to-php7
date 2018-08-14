@@ -6,16 +6,17 @@ Some changes are done so as to suppress unwanted warnings.
 
 # Usage
 Enter the root directory containg Indexhibit files and directories. It should look like this: 
-'''
+```
 $ ls
 files  htaccess  index.php  ndxz-studio
-'''
+```
 Download the patch
 Apply the patch like this:
-'''
+```
 patch -p1 < indexhibit_legacy_to_php7.diff
+```
 Output should looke like this:
-'''
+```
 $ patch -p1 < ../indexhibit_legacy_to_php7.diff 
 patching file index.php
 patching file ndxz-studio/common.php
@@ -48,4 +49,4 @@ patching file ndxz-studio/site/plugin/exhibit.over_and_over.php
 patching file ndxz-studio/site/plugin/exhibit.slideshow.php
 patching file ndxz-studio/site/plugin/exhibit.thickbox.php
 patching file ndxz-studio/site/plugin/index.php
-'''
+```
