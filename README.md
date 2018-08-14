@@ -8,7 +8,7 @@ Some changes are done so as to suppress unwanted warnings.
 This patch is to be used only when the Indexhibit site in question cannot be upgraded to Indexhibit 2.x. The patch only solves basic compatibility with PHP7.x and does not include newer Indexhibit functionality (included in Indexhibit 2.x versions). Also your Indexhibit legacy site might contain a lot of security holes that were fixed in Indexhibit 2.x versions, but not in Indexhibit legacy. Use at your own risk. It is always better to try to upgrade your site first, before using this patch.
 
 # Usage
-Enter the root directory containig Indexhibit files and directories. It should look like this: 
+Enter the root directory containing Indexhibit files and directories. It should look like this: 
 ```
 $ ls
 files  htaccess  index.php  ndxz-studio
