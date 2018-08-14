@@ -4,13 +4,24 @@ This is a GNU diff patch file to help switch Indexhibit legacy sites (pre Indexh
 Most of the important changes were done to object / class initiation, and of course to mysql_* functions. 
 Some changes are done so as to suppress unwanted warnings.
 
+# Warning
+This patch is to be used only when the Indexhibit site in question cannot be upgraded to Indexhibit 2.x. The patch only solves basic compatibility with PHP7.x and does not include newer Indexhibit functionality (included in Indexhibit 2.x versions). Also your Indexhibit legacy site might contain a lot of security holes that were fixed in Indexhibit 2.x versions, but not in Indexhibit legacy. Use at your own risk. Trying to first upgrade your site is always better. 
+
 # Usage
 Enter the root directory containg Indexhibit files and directories. It should look like this: 
 ```
 $ ls
 files  htaccess  index.php  ndxz-studio
 ```
-Download the patch. Apply the patch like this:
+Backup the original files and directories:
+```
+mkdir backup; cp -pr index.php backup; cp -pr ndxz-studio backup
+```
+Download the patch:
+```
+wget https://raw.githubusercontent.com/gnd/indexhibit-legacy-to-php7/master/indexhibit_legacy_to_php7.diff
+```
+Apply the patch like this:
 ```
 patch -p1 < indexhibit_legacy_to_php7.diff
 ```
@@ -49,3 +60,4 @@ patching file ndxz-studio/site/plugin/exhibit.slideshow.php
 patching file ndxz-studio/site/plugin/exhibit.thickbox.php
 patching file ndxz-studio/site/plugin/index.php
 ```
+Your site should be now compatible with PHP 7.x. If anything should go wrong you can always revert your changes by using your backup. If everything is ok dont forget to remove the backup directory and its contents.
