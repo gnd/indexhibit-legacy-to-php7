@@ -11,7 +11,7 @@ This patch is to be used only when the Indexhibit site in question cannot be upg
 Enter the root directory containing Indexhibit files and directories. It should look like this: 
 ```
 $ ls
-files  htaccess  index.php  ndxz-studio
+files  index.php  ndxz-studio
 ```
 Backup the original files and directories:
 ```
