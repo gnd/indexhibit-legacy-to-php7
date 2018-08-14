@@ -10,8 +10,7 @@ Enter the root directory containg Indexhibit files and directories. It should lo
 $ ls
 files  htaccess  index.php  ndxz-studio
 ```
-Download the patch
-Apply the patch like this:
+Download the patch. Apply the patch like this:
 ```
 patch -p1 < indexhibit_legacy_to_php7.diff
 ```
