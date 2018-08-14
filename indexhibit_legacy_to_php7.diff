@@ -1,0 +1,1408 @@
+@@
+@@  Indexhibit legacy to PHP7 Patch
+@@
+@@    This is a GNU diff patch file to help switch
+@@    Indexhibit legacy sites (pre Indexhibit 2.x)
+@@    to be compatible with PHP7.x. Most of the important
+@@    changes were done to object / class initiation, and
+@@    of course to mysql_* functions. Some changes are
+@@    done so as to suppress unwanted warnings.
+@@
+@@    gnd, 2018
+@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+diff -Naur ndxz-orig/index.php ndxz-php7/index.php
+--- ndxz-orig/index.php	2009-12-13 11:46:58.000000000 +0100
++++ ndxz-php7/index.php	2018-08-14 19:19:12.352354425 +0200
+@@ -31,7 +31,7 @@
+ 	
+ // time to roll
+ load_helpers(array('time'));
+-$OBJ =& load_class('core', TRUE, 'lib');
++$OBJ = load_class('core', TRUE, 'lib');
+ 
+ // page query
+ $rs = $OBJ->db->fetchRecord("SELECT * 
+@@ -83,7 +83,7 @@
+ }
+ 
+ // makin' stuff happen
+-$PARSE =& load_class('parse', TRUE, 'lib');
++$PARSE = load_class('parse', TRUE, 'lib');
+ $PARSE->vars = $rs;
+ $PARSE->code = $contents;
+ echo $PARSE->parsing();
+diff -Naur ndxz-orig/ndxz-studio/common.php ndxz-php7/ndxz-studio/common.php
+--- ndxz-orig/ndxz-studio/common.php	2008-01-15 17:57:52.000000000 +0100
++++ ndxz-php7/ndxz-studio/common.php	2018-08-14 19:19:12.352354425 +0200
+@@ -23,7 +23,7 @@
+ }
+ 
+ // can't return direct references (weird bug)
+-function &get_instance()
++function get_instance()
+ {
+ 	global $OBJ, $INDX;
+ 	
+@@ -41,14 +41,21 @@
+ 
+ 
+ // this is a little ugly but it works
+-function &load_class($class, $instantiate = TRUE, $type, $internal = FALSE)
++function load_class($class, $instantiate = TRUE, $type, $internal = FALSE)
+ {
+ 	global $indx;
+ 	
+ 	static $objects = array();
+ 	
+ 	$path = load_path($type);
+-	$file = $class;
++	if (strcmp($class, "_error") == 0)
++	{
++		$file = "error";
++	}
++	else
++	{
++		$file = $class;
++	}
+ 	
+ 	// exceptions
+ 	if ($type == 'db') $file = 'db.' . $indx['sql'];
+@@ -70,7 +77,7 @@
+ 	
+ 			if ($instantiate == TRUE)
+ 			{
+-				$objects[$class] =& new $class();
++				$objects[$class] = new $class();
+ 			}
+ 			else
+ 			{
+@@ -90,7 +97,7 @@
+ 
+ 			if ($instantiate == TRUE)
+ 			{
+-				$objects[$class] =& new $class();
++				$objects[$class] = new $class();
+ 			}
+ 			else
+ 			{
+@@ -137,12 +144,12 @@
+ function show_error($message='')
+ {
+ 	// we'll use the default language for this
+-	$lang =& load_class('lang', TRUE, 'lib');
++	$lang = load_class('lang', TRUE, 'lib');
+ 	$lang->setlang(); // get the default strings
+ 	
+ 	$message = $lang->word($message);
+ 	
+-	$error =& load_class('error', TRUE, 'lib');
++	$error = load_class('_error', TRUE, 'lib');
+ 	header('Status: 503 Service Unavailable'); // change to right error note
+ 	echo $error->show_error($message);
+ 	exit;
+@@ -153,7 +160,7 @@
+ function show_login($message='')
+ {
+ 	// we'll use the default language for this
+-	$lang =& load_class('lang',TRUE,'lib');
++	$lang = load_class('lang',TRUE,'lib');
+ 	$lang->setlang(); // get the default strings
+ 	
+ 	$login = "<form method='post' action=''>
+@@ -167,7 +174,7 @@
+ 	<p>".$lang->word($message)."&nbsp;</p>
+ 	</form>";
+ 	
+-	$error =& load_class('error',TRUE,'lib');
++	$error = load_class('_error',TRUE,'lib');
+ 	echo $error->show_login($login);
+ 	exit;
+ }
+@@ -267,4 +274,4 @@
+ }
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/db/db.mysql.php ndxz-php7/ndxz-studio/db/db.mysql.php
+--- ndxz-orig/ndxz-studio/db/db.mysql.php	2008-01-15 17:57:54.000000000 +0100
++++ ndxz-php7/ndxz-studio/db/db.mysql.php	2018-08-14 19:19:12.352354425 +0200
+@@ -38,11 +38,11 @@
+ 		
+ 		if (!$indx['host']) $this->db_out_of_order();
+ 	
+-		$this->link = @mysql_connect($indx['host'], $indx['user'], $indx['pass']);
++		$this->link = @mysqli_connect($indx['host'], $indx['user'], $indx['pass']);
+ 			
+ 		if (!$this->link) $this->db_out_of_order();
+ 
+-		mysql_select_db($indx['db']);
++		mysqli_select_db($this->link, $indx['db']);
+ 		register_shutdown_function(array(&$this, 'close'));
+ 	}
+ 
+@@ -57,7 +57,7 @@
+ 	{
+ 		$this->theQuery = $query;
+ 		if (!$this->theQuery) return false;	
+-		return mysql_query($this->theQuery, $this->link);
++		return mysqli_query($this->link, $this->theQuery);
+ 	}
+ 		
+ 
+@@ -85,8 +85,17 @@
+ 	{
+ 		if ($rs = $this->query($query)) 
+ 		{
+-			$num = (mysql_num_rows($rs) != 0) ? mysql_result($rs,0) : '';
+-			mysql_free_result($rs);
++			// $num = (mysqli_num_rows($rs) != 0) ? mysqli_result($rs,0) : '';
++			if (mysqli_num_rows($rs) != 0) 
++			{
++				mysqli_data_seek($rs, 0);
++				$num = $rs->fetch_row();
++			}
++			else
++			{
++				$num = '';
++			}
++			mysqli_free_result($rs);
+ 			return $num;
+ 		}
+ 		
+@@ -105,9 +114,9 @@
+ 		$rs = $this->query($query);
+ 		
+ 		if ($rs) {
+-			if (mysql_num_rows($rs) > 0) 
++			if (mysqli_num_rows($rs) > 0) 
+ 			{
+-				while ($arr = mysql_fetch_assoc($rs)) $out[] = $arr;
++				while ($arr = mysqli_fetch_assoc($rs)) $out[] = $arr;
+ 				return $out;
+ 			}
+ 		}
+@@ -127,9 +136,9 @@
+ 		$rs = $this->query($query);
+ 		
+ 		if ($rs) {
+-			if (mysql_num_rows($rs) > 0) 
++			if (mysqli_num_rows($rs) > 0) 
+ 			{
+-				$arr = mysql_fetch_assoc($rs);			
++				$arr = mysqli_fetch_assoc($rs);			
+ 				return $arr;
+ 			}
+ 		}
+@@ -148,7 +157,7 @@
+ 	{
+ 		if ($rs = $this->query($query))
+ 		{
+-			$lastid = mysql_insert_id($this->link);
++			$lastid = mysqli_insert_id($this->link);
+ 			if ($lastid) return $lastid;
+ 		}
+ 		
+@@ -301,13 +310,13 @@
+ 			return $str;
+ 		}
+ 
+-		if (function_exists('mysql_real_escape_string'))
++		if (function_exists('mysqli_real_escape_string'))
+ 		{
+-			return mysql_real_escape_string($str, $this->link);
++			return mysqli_real_escape_string($this->link, $str);
+ 		}
+-		elseif (function_exists('mysql_escape_string'))
++		elseif (function_exists('mysqli_escape_string'))
+ 		{
+-			return mysql_escape_string($str);
++			return mysqli_escape_string($str);
+ 		}
+ 		else
+ 		{
+@@ -358,7 +367,7 @@
+ 	*/
+ 	function close()
+ 	{
+-		mysql_close($this->link);
++		mysqli_close($this->link);
+ 	}
+ 
+ 
+@@ -377,4 +386,4 @@
+ }
+ 	
+ 	
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/defaults.php ndxz-php7/ndxz-studio/defaults.php
+--- ndxz-orig/ndxz-studio/defaults.php	2018-08-14 23:10:17.953025651 +0200
++++ ndxz-php7/ndxz-studio/defaults.php	2018-08-14 23:10:37.609096112 +0200
+@@ -13,7 +13,7 @@
+ //////////// you won't normally need to edit anything below this line ////////////
+ 
+ // darn quotes
+-set_magic_quotes_runtime(0);
++// set_magic_quotes_runtime(0);
+ 
+ // database prefix
+ define('PX', 'ndxz_');
+diff -Naur ndxz-orig/ndxz-studio/helper/editortools.php ndxz-php7/ndxz-studio/helper/editortools.php
+--- ndxz-orig/ndxz-studio/helper/editortools.php	2008-01-15 17:57:56.000000000 +0100
++++ ndxz-php7/ndxz-studio/helper/editortools.php	2018-08-14 19:19:12.356354399 +0200
+@@ -5,7 +5,7 @@
+ {
+ 	global $go, $default;
+ 	
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	
+ 	if ($OBJ->access->prefs['writing'] != 1) {
+ 		
+@@ -90,7 +90,7 @@
+ function editorButtons($published='')
+ {
+ 	global $go;
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	
+ 	$published = (isset($published)) ? $published : '';
+ 
+@@ -108,4 +108,4 @@
+ 	return $s;
+ }
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/helper/html.php ndxz-php7/ndxz-studio/helper/html.php
+--- ndxz-orig/ndxz-studio/helper/html.php	2008-01-15 17:57:58.000000000 +0100
++++ ndxz-php7/ndxz-studio/helper/html.php	2018-08-14 19:19:12.356354399 +0200
+@@ -7,7 +7,7 @@
+ // works for select menus and some input fields
+ function ips($title, $function, $name, $value='', $attr='', $type='', $subtitle='', $req='', $tag='', $tag_attr='', $extra='', $afterwards='')
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	
+ 	global $error_msg, $go;
+ 	
+@@ -249,7 +249,8 @@
+ 
+ function xtag($insert, $tag, $attr='') 
+ {
+-	return "<$tag".attr($attr).">$insert</$tag>\n";
++	@$ret = "<$tag".attr($attr).">$insert</$tag>\n";
++	return $ret;
+ }
+ 
+ 
+@@ -314,7 +315,7 @@
+ // not being used
+ function showHelp($title='')
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	
+ 	if ($OBJ->access->prefs['user_help'] == 1) 
+ 	{
+@@ -327,4 +328,4 @@
+ }
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/helper/time.php ndxz-php7/ndxz-studio/helper/time.php
+--- ndxz-orig/ndxz-studio/helper/time.php	2008-01-15 17:58:00.000000000 +0100
++++ ndxz-php7/ndxz-studio/helper/time.php	2018-08-14 19:19:12.356354399 +0200
+@@ -6,7 +6,7 @@
+ // time function for right now
+ function getNow($now=TRUE)
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	
+ 	return ($now == TRUE) ?
+ 		date("Y-m-d H:i:s",time()) :
+@@ -44,4 +44,4 @@
+ 
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/index.php ndxz-php7/ndxz-studio/index.php
+--- ndxz-orig/ndxz-studio/index.php	2008-01-15 17:58:00.000000000 +0100
++++ ndxz-php7/ndxz-studio/index.php	2018-08-14 19:19:12.356354399 +0200
+@@ -33,7 +33,7 @@
+ load_class('core', FALSE, 'lib');
+ 
+ // "I'm digging for fire" - Pixies	
+-$OBJ =& load_class('router', TRUE, 'lib');
++$OBJ = load_class('router', TRUE, 'lib');
+ 
+ // are we logged in?
+ $OBJ->access->checkLogin();
+@@ -42,11 +42,11 @@
+ $OBJ->lang->setlang($OBJ->access->prefs['user_lang']);
+ 
+ // loading our module object
+-$INDX =& load_class($go['a'], TRUE, 'mod', TRUE);
++$INDX = load_class($go['a'], TRUE, 'mod', TRUE);
+ 
+ // referencing wonkiness
+ // review when there is time
+-$aINDX =& $INDX;
++$aINDX = $INDX;
+ 
+ // loading our module method
+ $OBJ->tunnel($aINDX, $go['a'], $go['q']);
+@@ -55,4 +55,4 @@
+ $INDX->template->output('index');
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/lib/access.php ndxz-php7/ndxz-studio/lib/access.php
+--- ndxz-orig/ndxz-studio/lib/access.php	2008-01-15 17:58:16.000000000 +0100
++++ ndxz-php7/ndxz-studio/lib/access.php	2018-08-14 19:19:12.356354399 +0200
+@@ -38,7 +38,7 @@
+ 	*/
+ 	function settings()
+ 	{
+-		$OBJ =& get_instance();
++		$OBJ = get_instance();
+ 		
+ 		$adm['adm_id'] = 1;
+ 		
+@@ -55,7 +55,7 @@
+ 	*/
+ 	function checkLogin()
+ 	{
+-		$OBJ =& get_instance();
++		$OBJ = get_instance();
+ 	
+ 		// if logging out
+ 		if (isset($_POST['logout'])) $this->logout();
+@@ -113,4 +113,4 @@
+ 	}	
+ }
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/lib/core.php ndxz-php7/ndxz-studio/lib/core.php
+--- ndxz-orig/ndxz-studio/lib/core.php	2008-01-15 17:58:16.000000000 +0100
++++ ndxz-php7/ndxz-studio/lib/core.php	2018-08-14 19:19:12.360354374 +0200
+@@ -46,7 +46,7 @@
+ 		foreach (array('template','access') as $val)
+ 		{
+ 			$class = strtolower($val);
+-			if (!is_object($class)) $this->$class =& load_class($val, TRUE, 'lib');
++			if (!is_object($class)) $this->$class = load_class($val, TRUE, 'lib');
+ 			$this->is_loaded[] = $class;
+ 		}
+ 	}
+@@ -60,7 +60,7 @@
+ 	function load_lang()
+ 	{
+ 		$class = strtolower('lang');
+-		if (!is_object($class)) $this->$class =& load_class($class, TRUE, 'lang');
++		if (!is_object($class)) $this->$class = load_class($class, TRUE, 'lang');
+ 		$this->is_loaded[] = $class;
+ 	}
+ 	
+@@ -73,7 +73,7 @@
+ 	function load_db()
+ 	{
+ 		$class = strtolower('db');
+-		if (!is_object($class)) $this->$class =& load_class($class, TRUE, 'db');
++		if (!is_object($class)) $this->$class = load_class($class, TRUE, 'db');
+ 		$this->is_loaded[] = $class;
+ 	}
+ 	
+@@ -88,11 +88,11 @@
+ 		if ($class == '') return;
+ 		
+ 		$class = strtolower($class);
+-		if (!is_object($class)) $this->$class =& load_class($class, TRUE, 'lib');
++		if (!is_object($class)) $this->$class = load_class($class, TRUE, 'lib');
+ 		$this->is_loaded[] = $class;
+ 	}
+ }
+ 
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/lib/error.php ndxz-php7/ndxz-studio/lib/error.php
+--- ndxz-orig/ndxz-studio/lib/error.php	2008-01-15 17:58:16.000000000 +0100
++++ ndxz-php7/ndxz-studio/lib/error.php	2018-08-14 19:19:12.360354374 +0200
+@@ -6,7 +6,7 @@
+ * @version 1.0
+ * @author Vaska 
+ */
+-class Error
++class _Error
+ {
+ 	/**
+ 	* Returns error page
+@@ -47,4 +47,4 @@
+ 
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/lib/organize.php ndxz-php7/ndxz-studio/lib/organize.php
+--- ndxz-orig/ndxz-studio/lib/organize.php	2008-01-15 17:58:18.000000000 +0100
++++ ndxz-php7/ndxz-studio/lib/organize.php	2018-08-14 20:41:08.814116241 +0200
+@@ -18,7 +18,7 @@
+ 	
+ 	function order()
+ 	{
+-		$OBJ =& get_instance();
++		$OBJ = get_instance();
+ 
+ 		if ($this->obj_org == 1)
+ 		{
+@@ -32,7 +32,7 @@
+ 	
+ 	function chronological()
+ 	{
+-		$OBJ =& get_instance();
++		$OBJ = get_instance();
+ 		global $go, $default;
+ 		
+ 		$body = '';
+@@ -197,7 +197,7 @@
+ 	
+ 	function sectional()
+ 	{
+-		$OBJ =& get_instance();
++		$OBJ = get_instance();
+ 		global $go, $default;
+ 		
+ 		$body = '';
+@@ -261,4 +261,4 @@
+ 	}
+ 	
+ 	
+-}
+\ No newline at end of file
++}
+diff -Naur ndxz-orig/ndxz-studio/lib/processor.php ndxz-php7/ndxz-studio/lib/processor.php
+--- ndxz-orig/ndxz-studio/lib/processor.php	2008-01-15 17:58:20.000000000 +0100
++++ ndxz-php7/ndxz-studio/lib/processor.php	2018-08-14 19:19:12.360354374 +0200
+@@ -264,7 +264,7 @@
+ 	function pchars()
+ 	{
+ 		// FIX LATER
+-		$OBJ =& get_instance();
++		$OBJ = get_instance();
+ 		
+ 		if ($this->variable) 
+ 		{
+diff -Naur ndxz-orig/ndxz-studio/lib/router.php ndxz-php7/ndxz-studio/lib/router.php
+--- ndxz-orig/ndxz-studio/lib/router.php	2008-01-15 17:58:22.000000000 +0100
++++ ndxz-php7/ndxz-studio/lib/router.php	2018-08-14 19:19:12.360354374 +0200
+@@ -51,7 +51,7 @@
+ 		{
+ 			while (($module = readdir($fp)) !== false)
+ 			{
+-				if ((!eregi("^_",$module)) && (!eregi("^CVS$",$module)) && (!eregi(".php$",$module)) && (!eregi(".html$",$module)) && (!eregi(".DS_Store",$module)) && (!eregi("\.",$module)))
++				if ((!preg_match("/^_/",$module)) && (!preg_match("/^CVS$/",$module)) && (!preg_match("/.php$/",$module)) && (!preg_match("/.html$/",$module)) && (!preg_match("/.DS_Store/",$module)) && (!preg_match("/\./",$module)))
+ 				{      
+ 					$modules[] = $module;
+ 				}
+@@ -136,4 +136,4 @@
+ }
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/lib/statistics.php ndxz-php7/ndxz-studio/lib/statistics.php
+--- ndxz-orig/ndxz-studio/lib/statistics.php	2008-01-15 17:58:22.000000000 +0100
++++ ndxz-php7/ndxz-studio/lib/statistics.php	2018-08-14 19:19:12.360354374 +0200
+@@ -58,7 +58,7 @@
+ 		$stat['url']		= parse_url($stat['ref']);
+ 		
+ 		$stat['domain']		= (isset($stat['url']['host'])) ?
+-			eregi_replace("^www.", "", $stat['url']['host']) :
++			preg_replace("/^www./", "", $stat['url']['host']) :
+ 			'';
+ 		
+ 		$stat['uri']		= $_SERVER['REQUEST_URI'];
+@@ -98,7 +98,7 @@
+ 	*/
+ 	function stat_getCountry($ip='')
+ 	{
+-		$OBJ =& get_instance();
++		$OBJ = get_instance();
+ 	
+ 		if ($ip == '') return;
+ 	
+@@ -175,32 +175,32 @@
+ 		$browser['browser']		= "Indeterminable";
+ 	
+ 		// test for platform
+-		$platforms = array('Windows'=>'Win', 'Macintosh'=>'Mac', 'Linux'=>'Linux');
++		$platforms = array('Windows'=>'/Win/', 'Macintosh'=>'/Mac/', 'Linux'=>'/Linux/');
+ 	
+ 		foreach ($platforms as $key => $test) 
+ 		{		
+-			if (eregi($test, $ua)) $browser['platform'] = $key;
++			if (preg_match($test, $ua)) $browser['platform'] = $key;
+ 		}
+ 	
+ 		// this should probably be updated...
+ 		// add AppleWebkit
+ 		$browsers = array(
+-			array('Netscape', 'Mozilla/4', 'Mozilla/([[:digit:]\.]+)'),
+-			array('Mozilla', 'Mozilla/5', 'rv(:| )([[:digit:]\.]+)'),
+-			array('Safari', 'Safari', 'Safari/([[:digit:]\.]+)'),
+-			array('Firefox', 'Firefox', 'Firefox/([[:digit:]\.]+)'),
+-			array('Netscape', 'Netscape', 'Netscape[0-9]?/([[:digit:]\.]+)'),
+-			array('Internet Explorer', 'MSIE', 'MSIE ([[:digit:]\.]+)'),
+-			array('Crawler/Search Engine', 'Crawl', 'stop'),
+-			array('Crawler/Search Engine', 'bot', 'stop'),
+-			array('Crawler/Search Engine', 'slurp', 'stop'),
+-			array('Lynx', 'Lynx', 'Lynx/([[:digit:]\.]+)'),
+-			array('Links', 'Links', '\(([[:digit:]\.]+)')
++			array('Netscape', '/Mozilla\/4/', '/Mozilla\/([[:digit:]\.]+)/'),
++			array('Mozilla', '/Mozilla\/5/', '/rv(:| )([[:digit:]\.]+)/'),
++			array('Safari', '/Safari/', '/Safari\/([[:digit:]\.]+)/'),
++			array('Firefox', '/Firefox/', '/Firefox\/([[:digit:]\.]+)/'),
++			array('Netscape', '/Netscape/', '/Netscape[0-9]?\/([[:digit:]\.]+)/'),
++			array('Internet Explorer', '/MSIE/', '/MSIE ([[:digit:]\.]+)/'),
++			array('Crawler/Search Engine', '/Crawl/', '/stop/'),
++			array('Crawler/Search Engine', '/bot/', '/stop/'),
++			array('Crawler/Search Engine', '/slurp/', '/stop/'),
++			array('Lynx', '/Lynx/', '/Lynx/([[:digit:]\.]+)/'),
++			array('Links', '/Links/', '/\(([[:digit:]\.]+)/')
+ 			);
+ 	
+ 		foreach ($browsers as $test) {
+ 		
+-			if (eregi($test[1], $ua)) 
++			if (preg_match($test[1], $ua)) 
+ 			{
+ 				$browser['browser'] = $test[0];
+ 			}
+@@ -218,7 +218,7 @@
+ 	*/
+ 	function stat_insertHit()
+ 	{
+-		$OBJ =& get_instance();
++		$OBJ = get_instance();
+ 	
+ 		$stat = $this->stat_doStats();
+ 		
+@@ -252,4 +252,4 @@
+ }
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/lib/template.php ndxz-php7/ndxz-studio/lib/template.php
+--- ndxz-orig/ndxz-studio/lib/template.php	2008-05-03 12:01:10.000000000 +0200
++++ ndxz-php7/ndxz-studio/lib/template.php	2018-08-14 19:19:12.360354374 +0200
+@@ -60,7 +60,7 @@
+ 	*/
+ 	function tpl_test($tpl)
+ 	{
+-		$OBJ =& get_instance();
++		$OBJ = get_instance();
+ 
+ 		header ('Content-type: text/html; charset=utf-8');
+ 
+@@ -279,7 +279,7 @@
+ 	{
+ 		global $go;
+ 		
+-		$OBJ =& get_instance();
++		$OBJ = get_instance();
+ 		$out = '';
+ 		
+ 		if (!is_array($this->tpl_modules())) show_error('no menu created');
+@@ -319,7 +319,7 @@
+ 			{
+ 				while (($module = readdir($fp)) !== false) 
+ 				{
+-					if ((!eregi("^_",$module)) && (!eregi("^CVS$",$module)) && (!eregi(".php$",$module)) && (!eregi(".html$",$module)) && (!eregi(".DS_Store",$module)) && (!eregi("\.",$module)) && (!eregi("system",$module)))
++					if ((!preg_match("/^_/",$module)) && (!preg_match("/^CVS$/",$module)) && (!preg_match("/.php$/",$module)) && (!preg_match("/.html$/",$module)) && (!preg_match("/.DS_Store/",$module)) && (!preg_match("/\./",$module)) && (!preg_match("/system/",$module)))
+ 					{      
+ 						$modules[] = $module;
+ 					}
+@@ -342,7 +342,7 @@
+ 	*/
+ 	function tpl_prefs_nav()
+ 	{
+-		$OBJ =& get_instance();
++		$OBJ = get_instance();
+ 		
+ 		$this->pref_nav['view'] = array(
+ 			'pref' => '<strong>' . $OBJ->lang->word('view site') . '</strong>', 'link' => BASEURL . '/', 'attr' => "class='prefs'");
+@@ -368,7 +368,7 @@
+ 	*/
+ 	function tpl_indexhibit()
+ 	{
+-		$OBJ =& get_instance();
++		$OBJ = get_instance();
+ 		return $OBJ->lang->word('indexhibit');
+ 	}
+ 	
+@@ -406,7 +406,7 @@
+ 	function tpl_location()
+ 	{
+ 		global $go;
+-		$OBJ =& get_instance();
++		$OBJ = get_instance();
+ 		
+ 		$addition = (isset($this->location)) ? ": $this->location": '';
+ 		
+@@ -424,7 +424,7 @@
+ 	*/
+ 	function tpl_action()
+ 	{
+-		$OBJ =& get_instance();
++		$OBJ = get_instance();
+ 		
+ 		//$color = ($this->action_error != '') ? 'action-error' : 'action';
+ 		
+@@ -453,7 +453,7 @@
+ 	{
+ 		if ($this->sub_location == '') return;
+ 		
+-		$OBJ =& get_instance();
++		$OBJ = get_instance();
+ 		
+ 		$out = '';
+ 		
+@@ -514,7 +514,7 @@
+ 	{
+ 		if ($this->toggler == '') return;
+ 		
+-		$OBJ =& get_instance();
++		$OBJ = get_instance();
+ 		
+ 		$out = '';
+ 		
+@@ -542,7 +542,7 @@
+ 	*/
+ 	function tpl_paginate($row, $lim, $query, $string='')
+ 	{
+-		$OBJ =& get_instance();
++		$OBJ = get_instance();
+ 		global $go;
+ 		
+ 		// not happy with this...
+@@ -592,7 +592,7 @@
+ 	{
+ 		if ($this->pop_links == '') return;
+ 		
+-		$OBJ =& get_instance();
++		$OBJ = get_instance();
+ 		
+ 		$out = '';
+ 		
+@@ -628,4 +628,4 @@
+ }
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/module/exhibits/files.php ndxz-php7/ndxz-studio/module/exhibits/files.php
+--- ndxz-orig/ndxz-studio/module/exhibits/files.php	2008-01-15 17:58:24.000000000 +0100
++++ ndxz-php7/ndxz-studio/module/exhibits/files.php	2018-08-14 19:19:12.360354374 +0200
+@@ -5,7 +5,7 @@
+ {
+ 	global $default;
+ 	
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	
+ 	$s = '';
+ 
+@@ -25,7 +25,7 @@
+ {
+ 	global $default;
+ 	
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	
+ 	$s = '';
+ 
+@@ -64,7 +64,7 @@
+ 
+ function getSectionOrd($section='', $name, $attr='')
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	
+ 	$s = '';
+ 
+@@ -81,7 +81,7 @@
+ 
+ function getProcessing($state, $name, $attr)
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	
+ 	if ($state == '') $state = 0;
+ 	
+@@ -94,7 +94,7 @@
+ 
+ function getGeneric($state, $name, $attr)
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	
+ 	if ($state == '') $state = 0;
+ 	
+@@ -107,7 +107,7 @@
+ 
+ function getOrganize($state, $name, $attr)
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	
+ 	if ($state == '') $state = 1;
+ 	
+@@ -129,7 +129,7 @@
+ 		{
+ 			while (($module = readdir($fp)) !== false) 
+ 			{
+-				if ((!eregi("^_", $module)) && (!eregi("^CVS$", $module)) && (!eregi(".php$", $module)) && (!eregi(".html$", $module)) && (!eregi(".DS_Store", $module)) && (!eregi("\.", $module)) && (!eregi("plugin", $module)) && (!eregi("css", $module)) && (!eregi("js", $module)) && (!eregi("img", $module)))
++				if ((!preg_match("/^_/", $module)) && (!preg_match("/^CVS$/", $module)) && (!preg_match("/.php$/", $module)) && (!preg_match("/.html$/", $module)) && (!preg_match("/.DS_Store/", $module)) && (!preg_match("/\./", $module)) && (!preg_match("/plugin/", $module)) && (!preg_match("/css/", $module)) && (!preg_match("/js/", $module)) && (!preg_match("/img/", $module)))
+ 				{      
+ 					$modules[] = $module;
+ 				}
+@@ -153,7 +153,7 @@
+ 
+ function getPresent($path, $default)
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	
+ 	if ($OBJ->object['obj_mode'] == 1)
+ 	{
+@@ -167,7 +167,7 @@
+ 			{
+ 				while (($module = readdir($fp)) !== false) 
+ 				{
+-					if (eregi("^exhibit", $module))
++					if (preg_match("/^exhibit/", $module))
+ 					{
+ 						$modules[] = $module;
+ 					}
+@@ -216,7 +216,7 @@
+ 
+ function createFileBox($num)
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	
+ 	$s = label($OBJ->lang->word('image title') . span(' ' . $OBJ->lang->word('optional')));
+ 	
+@@ -238,7 +238,7 @@
+ 
+ function getExhibitImages($id)
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	
+ 	$body = "<ul id='boxes'>\n";
+ 	
+@@ -271,7 +271,7 @@
+ 
+ function getOnOff($input='', $attr='')
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	$onoff = array('on' => 1, 'off' => 0);
+ 	
+ 	$li = '';
+@@ -290,7 +290,7 @@
+ 
+ function getThumbSize($input='', $attr='')
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	global $default;
+ 	
+ 	$li = '';
+@@ -307,7 +307,7 @@
+ 
+ function getImageSizes($input='', $attr='')
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	global $default;
+ 	
+ 	$li = '';
+@@ -412,4 +412,4 @@
+ }
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/module/exhibits/index.php ndxz-php7/ndxz-studio/module/exhibits/index.php
+--- ndxz-orig/ndxz-studio/module/exhibits/index.php	2008-01-15 17:58:26.000000000 +0100
++++ ndxz-php7/ndxz-studio/module/exhibits/index.php	2018-08-14 19:19:12.364354348 +0200
+@@ -721,11 +721,11 @@
+ 	// we need a way to protect these page from outside access
+ 	function sbmt_add_page()
+ 	{
+-		$OBJ->template->errors = TRUE;
++		@$OBJ->template->errors = TRUE;
+ 		global $go;
+ 		
+ 		// can we do this better?
+-		$processor =& load_class('processor', TRUE, 'lib');
++		$processor = load_class('processor', TRUE, 'lib');
+ 	
+ 		$clean['title'] = $processor->process('title',array('notags', 'reqNotEmpty'));
+ 		$clean['section_id'] = $processor->process('section_id',array('notags', 'reqNotEmpty'));
+@@ -766,11 +766,11 @@
+ 	// we need a way to protect these page from outside access
+ 	function sbmt_add_sec()
+ 	{
+-		$OBJ->template->errors = TRUE;
++		@$OBJ->template->errors = TRUE;
+ 		global $go;
+ 		
+ 		// can we do this better?
+-		$processor =& load_class('processor', TRUE, 'lib');
++		$processor = load_class('processor', TRUE, 'lib');
+ 	
+ 		$clean['sec_desc'] = $processor->process('sec_desc',array('notags','reqNotEmpty'));
+ 		$clean['section'] = $processor->process('section',array('notags','reqNotEmpty'));
+@@ -811,7 +811,7 @@
+ 	{
+ 		global $go;
+ 		
+-		$processor =& load_class('processor', TRUE, 'lib');
++		$processor = load_class('processor', TRUE, 'lib');
+ 		
+ 		$temp['hsec_ord'] = $processor->process('hsec_ord',array('digit'));
+ 		$temp['hsecid'] = $processor->process('hsecid',array('digit'));
+@@ -823,7 +823,6 @@
+ 		$clean['sec_disp'] = $processor->process('sec_disp',array('boolean'));
+ 		$clean['sec_ord'] = $processor->process('sec_ord',array('digit'));
+ 
+-
+ 		if ($processor->check_errors())
+ 		{
+ 			// get our error messages
+@@ -890,7 +889,7 @@
+ 	{
+ 		global $go;
+ 		
+-		$processor =& load_class('processor', TRUE, 'lib');
++		$processor = load_class('processor', TRUE, 'lib');
+ 		
+ 		$temp['hsec_ord'] = $processor->process('hsec_ord',array('digit'));
+ 		
+@@ -930,7 +929,7 @@
+ 			
+ 		load_helper('output');
+ 		load_helper('romanize');
+-		$URL =& load_class('publish', TRUE, 'lib');
++		$URL = load_class('publish', TRUE, 'lib');
+ 
+ 		// make the url
+ 		$URL->title = $rs['title'];
+@@ -964,7 +963,7 @@
+ 			if (($rs['report'] != 1) && ($rs['obj_apikey'] != '') 
+ 				&& ($rs['obj_email'] != '') && ($rs['sec_report'] == 1))
+ 			{
+-				$REST =& load_class('rest', TRUE, 'lib');
++				$REST = load_class('rest', TRUE, 'lib');
+ 				$REST->apikey		= $rs['obj_apikey'];
+ 				$REST->email		= $rs['obj_email'];
+ 				$REST->id			= $rs['id'];
+@@ -1010,7 +1009,7 @@
+ 			return;
+ 		}
+ 		
+-		$processor =& load_class('processor', TRUE, 'lib');
++		$processor = load_class('processor', TRUE, 'lib');
+ 	
+ 		$clean['hsection_id'] = $processor->process('hsection_id',array('notags','digit'));
+ 		$clean['hord'] = $processor->process('hord',array('notags','digit'));
+@@ -1053,7 +1052,7 @@
+ 	{
+ 		global $go;
+ 		
+-		$processor =& load_class('processor', TRUE, 'lib');
++		$processor = load_class('processor', TRUE, 'lib');
+ 	
+ 		$clean['media_title'] = $processor->process('media_title', array('notags'));
+ 		$clean['media_caption'] = $processor->process('media_caption', array('nophp'));
+@@ -1185,7 +1184,7 @@
+ 		$dir = DIRNAME . BASEFILES . '/';
+ 		$types = $uploads['images'];
+ 		
+-		$IMG =& load_class('media', TRUE, 'lib');
++		$IMG = load_class('media', TRUE, 'lib');
+ 		
+ 		$thetype = explode('.', strtolower($_FILES['jxbg']['name']));
+ 		$thetype = array_pop($thetype);
+@@ -1254,7 +1253,7 @@
+ 	{
+ 		global $go, $default;
+ 		
+-		$processor =& load_class('processor', TRUE, 'lib');
++		$processor = load_class('processor', TRUE, 'lib');
+ 		load_helper('textprocess');
+ 	
+ 		$clean['obj_name'] = $processor->process('obj_name',array('notags','reqNotEmpty'));
+@@ -1326,10 +1325,10 @@
+ 	{
+ 		global $go, $uploads, $default;
+ 		
+-		$OBJ->template->errors = TRUE;
++		@$OBJ->template->errors = TRUE;
+ 		
+ 		load_module_helper('files', $go['a']);
+-		$IMG =& load_class('media', TRUE, 'lib');
++		$IMG = load_class('media', TRUE, 'lib');
+ 		
+ 		// we'll query for all our defaults first...
+ 		$rs = $this->db->fetchRecord("SELECT thumbs, images  
+@@ -1346,7 +1345,7 @@
+ 		$IMG->path = DIRNAME . GIMGS . '/';
+ 
+ 		load_helper('output');
+-		$URL =& load_class('publish', TRUE, 'lib');
++		$URL = load_class('publish', TRUE, 'lib');
+ 			
+ 		// +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 		
+@@ -1479,7 +1478,7 @@
+ 			FROM ".PX."objects    
+ 			WHERE id = '$clean[id]'");
+ 		
+-		$processor =& load_class('processor', TRUE, 'lib');
++		$processor = load_class('processor', TRUE, 'lib');
+ 		load_helper('textprocess');
+ 		
+ 		$clean['content'] = $processor->process('content', array('nophp'));
+@@ -1575,4 +1574,4 @@
+ }
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/module/stats/index.php ndxz-php7/ndxz-studio/module/stats/index.php
+--- ndxz-orig/ndxz-studio/module/stats/index.php	2008-01-15 17:58:30.000000000 +0100
++++ ndxz-php7/ndxz-studio/module/stats/index.php	2018-08-14 19:19:12.364354348 +0200
+@@ -54,9 +54,9 @@
+ 		$body .= td(convertDate($this->access->settings['installdate'], 
+ 			$this->access->prefs['user_offset'],
+ 			$this->access->prefs['user_format']),"class='cell-doc'");
+-		$body .= td('<b>'.$total_since_hits.'</b>',"class='cell-middle'");
+-		$body .= td('<b>'.$total_since_unique_hits.'</b>',"class='cell-middle'");
+-		$body .= td('<b>'.$total_since_refer_hits.'</b>',"class='cell-middle'");
++		@$body .= td('<b>'.$total_since_hits.'</b>',"class='cell-middle'");
++		@$body .= td('<b>'.$total_since_unique_hits.'</b>',"class='cell-middle'");
++		@$body .= td('<b>'.$total_since_refer_hits.'</b>',"class='cell-middle'");
+ 		$body .= "</tr>\n";
+ 		$body .= "</table>\n";
+ 		
+@@ -386,4 +386,4 @@
+ }
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/module/system/files.php ndxz-php7/ndxz-studio/module/system/files.php
+--- ndxz-orig/ndxz-studio/module/system/files.php	2008-05-03 12:09:44.000000000 +0200
++++ ndxz-php7/ndxz-studio/module/system/files.php	2018-08-14 19:19:12.364354348 +0200
+@@ -3,7 +3,7 @@
+ 
+ function getFiles()
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	global $go;
+ 	
+ 	$s = '';
+@@ -43,7 +43,7 @@
+ 
+ function linksManager()
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	
+ 	$rs = $OBJ->db->fetchArray("SELECT title,url,sec_desc  
+ 		FROM ".PX."objects 
+@@ -138,7 +138,7 @@
+ 
+ function createFileBox($num)
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	
+ 	$s = label($OBJ->lang->word('title') . span(' ' . $OBJ->lang->word('optional')));
+ 	
+@@ -224,7 +224,7 @@
+ 
+ function getLanguage($default='', $name, $attr='')
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	
+ 	$s = '';
+ 
+@@ -254,7 +254,7 @@
+ 
+ function getGeneric($state, $name, $attr)
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	
+ 	if ($state == '') $state = 0;
+ 	
+@@ -265,4 +265,4 @@
+ }
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/module/system/index.php ndxz-php7/ndxz-studio/module/system/index.php
+--- ndxz-orig/ndxz-studio/module/system/index.php	2008-02-05 06:16:00.000000000 +0100
++++ ndxz-php7/ndxz-studio/module/system/index.php	2018-08-14 19:19:12.364354348 +0200
+@@ -260,7 +260,7 @@
+ 		}
+ 
+ 		// parse it
+-		$PARSE =& load_class('parse', TRUE, 'lib');
++		$PARSE = load_class('parse', TRUE, 'lib');
+ 		$PARSE->vars = $rs;
+ 		$PARSE->code = $contents;
+ 		echo $PARSE->parsing();
+@@ -272,7 +272,7 @@
+ 	function sbmt_upd_user()
+ 	{
+ 		global $go;
+-		$processor =& load_class('processor', TRUE, 'lib');
++		$processor = load_class('processor', TRUE, 'lib');
+ 
+ 		$clean['user_offset'] = $processor->process('user_offset', array('digit'));
+ 		$clean['user_format'] = $processor->process('user_format', array('notags'));
+@@ -315,7 +315,9 @@
+ 		}
+ 		
+ 		// if change in language we need to refresh
+-		if ($clean['user_lang'] != $temp['huser_lang']) system_redirect("?a=$go[a]");
++		$tmp = '';
++		@$tmp = $temp['huser_lang'];
++		if ($clean['user_lang'] != $tmp) system_redirect("?a=$go[a]");
+ 
+ 		// send an update notice
+ 		$this->template->action_update = 'updated';
+@@ -346,7 +348,7 @@
+ 		}
+ 		else
+ 		{
+-			$processor =& load_class('processor', TRUE, 'lib');
++			$processor = load_class('processor', TRUE, 'lib');
+ 			
+ 			$clean['media_title'] = $processor->process('media_title',array('notags'));
+ 			$clean['media_x'] = $processor->process('media_x',array('digit'));
+@@ -377,7 +379,7 @@
+ 		$OBJ->template->errors = TRUE;
+ 		global $go, $uploads;
+ 
+-		$IMG =& load_class('media', TRUE, 'lib');
++		$IMG = load_class('media', TRUE, 'lib');
+ 			
+ 		// +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 		
+@@ -401,7 +403,7 @@
+ 					$thetype = array_pop($test);
+ 					
+ 					load_helper('output');
+-					$URL =& load_class('publish', TRUE, 'lib');
++					$URL = load_class('publish', TRUE, 'lib');
+ 
+ 					$URL->title = implode('_', $test);
+ 					$name = $URL->processTitle();
+@@ -461,4 +463,4 @@
+ 
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/site/plugin/exhibit.backgrounded.php ndxz-php7/ndxz-studio/site/plugin/exhibit.backgrounded.php
+--- ndxz-orig/ndxz-studio/site/plugin/exhibit.backgrounded.php	2008-01-15 17:58:42.000000000 +0100
++++ ndxz-php7/ndxz-studio/site/plugin/exhibit.backgrounded.php	2018-08-14 20:41:33.870191392 +0200
+@@ -16,7 +16,7 @@
+ 
+ function createExhibit()
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	global $rs, $exhibit;
+ 	
+ 	$pages = $OBJ->db->fetchArray("SELECT * 
+@@ -90,4 +90,4 @@
+ }
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/site/plugin/exhibit.deux_column.php ndxz-php7/ndxz-studio/site/plugin/exhibit.deux_column.php
+--- ndxz-orig/ndxz-studio/site/plugin/exhibit.deux_column.php	2008-01-15 17:58:42.000000000 +0100
++++ ndxz-php7/ndxz-studio/site/plugin/exhibit.deux_column.php	2018-08-14 20:41:23.758161037 +0200
+@@ -17,7 +17,7 @@
+ 
+ function createExhibit()
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	global $rs, $exhibit;
+ 	
+ 	$pages = $OBJ->db->fetchArray("SELECT * 
+@@ -108,4 +108,4 @@
+ }
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/site/plugin/exhibit.grow_no_title.php ndxz-php7/ndxz-studio/site/plugin/exhibit.grow_no_title.php
+--- ndxz-orig/ndxz-studio/site/plugin/exhibit.grow_no_title.php	2008-01-15 17:58:44.000000000 +0100
++++ ndxz-php7/ndxz-studio/site/plugin/exhibit.grow_no_title.php	2018-08-14 20:41:43.946221673 +0200
+@@ -17,7 +17,7 @@
+ 
+ function createExhibit()
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	global $rs, $exhibit;
+ 	
+ 	$pages = $OBJ->db->fetchArray("SELECT * 
+@@ -102,4 +102,4 @@
+ }
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/site/plugin/exhibit.grow.php ndxz-php7/ndxz-studio/site/plugin/exhibit.grow.php
+--- ndxz-orig/ndxz-studio/site/plugin/exhibit.grow.php	2008-01-15 17:58:42.000000000 +0100
++++ ndxz-php7/ndxz-studio/site/plugin/exhibit.grow.php	2018-08-14 19:19:12.364354348 +0200
+@@ -17,7 +17,7 @@
+ 
+ function createExhibit()
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	global $rs, $exhibit;
+ 	
+ 	$pages = $OBJ->db->fetchArray("SELECT * 
+@@ -106,4 +106,4 @@
+ }
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/site/plugin/exhibit.no_thumbs_no_captions.php ndxz-php7/ndxz-studio/site/plugin/exhibit.no_thumbs_no_captions.php
+--- ndxz-orig/ndxz-studio/site/plugin/exhibit.no_thumbs_no_captions.php	2008-01-15 17:58:44.000000000 +0100
++++ ndxz-php7/ndxz-studio/site/plugin/exhibit.no_thumbs_no_captions.php	2018-08-14 19:19:12.364354348 +0200
+@@ -16,7 +16,7 @@
+ 
+ function createExhibit()
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	global $rs, $exhibit;
+ 	
+ 	$pages = $OBJ->db->fetchArray("SELECT * 
+@@ -77,4 +77,4 @@
+ }
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/site/plugin/exhibit.no_thumbs_w_captions.php ndxz-php7/ndxz-studio/site/plugin/exhibit.no_thumbs_w_captions.php
+--- ndxz-orig/ndxz-studio/site/plugin/exhibit.no_thumbs_w_captions.php	2008-01-15 17:58:44.000000000 +0100
++++ ndxz-php7/ndxz-studio/site/plugin/exhibit.no_thumbs_w_captions.php	2018-08-14 20:41:54.510253456 +0200
+@@ -16,7 +16,7 @@
+ 
+ function createExhibit()
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	global $rs, $exhibit;
+ 	
+ 	$pages = $OBJ->db->fetchArray("SELECT * 
+@@ -78,4 +78,4 @@
+ }
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/site/plugin/exhibit.over_and_over.php ndxz-php7/ndxz-studio/site/plugin/exhibit.over_and_over.php
+--- ndxz-orig/ndxz-studio/site/plugin/exhibit.over_and_over.php	2008-01-15 17:58:44.000000000 +0100
++++ ndxz-php7/ndxz-studio/site/plugin/exhibit.over_and_over.php	2018-08-14 20:42:03.586280790 +0200
+@@ -16,7 +16,7 @@
+ 
+ function createExhibit()
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	global $rs;
+ 	
+ 	$pages = $OBJ->db->fetchArray("SELECT * 
+@@ -61,4 +61,4 @@
+ 
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/site/plugin/exhibit.slideshow.php ndxz-php7/ndxz-studio/site/plugin/exhibit.slideshow.php
+--- ndxz-orig/ndxz-studio/site/plugin/exhibit.slideshow.php	2008-01-15 17:58:44.000000000 +0100
++++ ndxz-php7/ndxz-studio/site/plugin/exhibit.slideshow.php	2018-08-14 19:19:12.364354348 +0200
+@@ -33,7 +33,7 @@
+ 
+ function createExhibit()
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	global $rs;
+ 	
+ 	$pages = $OBJ->db->fetchArray("SELECT * 
+@@ -85,4 +85,4 @@
+ 
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/site/plugin/exhibit.thickbox.php ndxz-php7/ndxz-studio/site/plugin/exhibit.thickbox.php
+--- ndxz-orig/ndxz-studio/site/plugin/exhibit.thickbox.php	2008-01-15 17:58:44.000000000 +0100
++++ ndxz-php7/ndxz-studio/site/plugin/exhibit.thickbox.php	2018-08-14 20:42:11.282303989 +0200
+@@ -20,7 +20,7 @@
+ 
+ function createExhibit()
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	global $rs;
+ 	
+ 	$pages = $OBJ->db->fetchArray("SELECT * 
+@@ -73,4 +73,4 @@
+ 
+ 
+ 
+-?>
+\ No newline at end of file
++?>
+diff -Naur ndxz-orig/ndxz-studio/site/plugin/index.php ndxz-php7/ndxz-studio/site/plugin/index.php
+--- ndxz-orig/ndxz-studio/site/plugin/index.php	2008-05-13 11:59:06.000000000 +0200
++++ ndxz-php7/ndxz-studio/site/plugin/index.php	2018-08-14 19:19:12.368354322 +0200
+@@ -36,43 +36,43 @@
+ 
+ function front_index()
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	return $OBJ->front->front_index();
+ }
+ 
+ function front_exhibit()
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	return $OBJ->front->front_exhibit();
+ }
+ 
+ function front_background()
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	return $OBJ->front->front_background();
+ }
+ 
+ function front_lib_css()
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	return $OBJ->front->front_lib_css();
+ }
+ 
+ function front_lib_js()
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	return $OBJ->front->front_lib_js();
+ }
+ 
+ function front_dyn_css()
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	return $OBJ->front->front_dyn_css();
+ }
+ 
+ function front_dyn_js()
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	return $OBJ->front->front_dyn_js();
+ }
+ 
+@@ -88,7 +88,7 @@
+ // chronological navigation type
+ function chronological()
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	global $rs, $default;
+ 
+ 	$pages = $OBJ->db->fetchArray("SELECT id, title, url, 
+@@ -151,7 +151,7 @@
+ // sections navigation
+ function sectional()
+ {
+-	$OBJ =& get_instance();
++	$OBJ = get_instance();
+ 	global $rs;
+ 
+ 	$pages = $OBJ->db->fetchArray("SELECT id, title, url, 
+@@ -218,8 +218,8 @@
+ 
+ function ndxz_users()
+ {
+-	$REST =& load_class('rest', TRUE, 'lib');
++	$REST = load_class('rest', TRUE, 'lib');
+ 	return $REST->indexhibit_user_list();
+ }
+ 
+-?>
+\ No newline at end of file
++?>
