@@ -14,7 +14,7 @@ Download the patch. Apply the patch like this:
 ```
 patch -p1 < indexhibit_legacy_to_php7.diff
 ```
-Output should looke like this:
+Output should look like this:
 ```
 $ patch -p1 < ../indexhibit_legacy_to_php7.diff 
 patching file index.php
