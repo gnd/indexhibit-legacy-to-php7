@@ -1,11 +1,11 @@
 # indexhibit-legacy-to-php7
 
-This is a GNU diff patch file to help switch Indexhibit legacy sites (pre Indexhibit 2.x) to be compatible with PHP7.x. 
+This is a GNU diff patch file to help switch **Indexhibit legacy** sites (pre Indexhibit 2.x) to be compatible with PHP7.x. 
 Most of the important changes were done to object / class initiation, and of course to mysql_* functions. 
 Some changes are done so as to suppress unwanted warnings.
 
 # Warning
-This patch is to be used only when the Indexhibit site in question cannot be upgraded to Indexhibit 2.x. The patch only solves basic compatibility with PHP7.x and does not include newer Indexhibit functionality (included in Indexhibit 2.x versions). Also your Indexhibit legacy site might contain a lot of security holes that were fixed in Indexhibit 2.x versions, but not in Indexhibit legacy. Use at your own risk. It is always better to try to upgrade your site first, before using this patch.
+This patch is to be used only when the Indexhibit site in question cannot be upgraded to Indexhibit 2.x. The patch only solves basic compatibility with PHP7.x and does not include newer Indexhibit functionality (included in Indexhibit 2.x versions). Also your Indexhibit legacy site might contain a lot of security holes that were fixed in Indexhibit 2.x versions, but not in **Indexhibit legacy** (pre 2.x Indexhibit). Use at your own risk. It is always better to try to upgrade your site first, before using this patch.
 
 # Usage
 Enter the root directory containing Indexhibit files and directories. It should look like this: 
