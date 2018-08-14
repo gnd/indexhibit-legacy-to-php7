@@ -15,7 +15,7 @@ files  index.php  ndxz-studio
 ```
 Backup the original files and directories:
 ```
-mkdir backup; cp -pr index.php backup/; cp -pr ndxz-studio backup/
+mkdir backup; cp -p index.php backup/; cp -pr ndxz-studio backup/
 ```
 Download the patch:
 ```
